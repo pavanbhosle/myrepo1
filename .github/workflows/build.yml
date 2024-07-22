@@ -17,6 +17,44 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
+    - name: Set up AWS CLI
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: 'us-west-2'
+
+    - name: Launch EC2 Instance
+      id: ec2-launch
+      run: |
+        # Launch EC2 instance using the AMI
+         INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0cb9a84fd84e4b269 --count 1 --instance-type t2.micro --key-name MyFirstEC2-KP --query 'Instances[0].InstanceId' --output text)
+         echo "INSTANCE_ID=${INSTANCE_ID}" >> $GITHUB_ENV
+        # Tag the instance for identification
+         aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=GitHubActionsRunner
+
+    - name: Wait for EC2 Instance to be Running
+      run: |
+        aws ec2 wait instance-running --instance-ids ${{ env.INSTANCE_ID }}
+
+    - name: Set up SSH Configuration
+      run: |
+        # Install SSH if not already available
+        sudo apt-get install -y ssh
+        # Add SSH known hosts
+        ssh-keyscan -H ec2-18-188-114-70.us-east-2.compute.amazonaws.com >> ~/.ssh/known_hosts
+
+    - name: Run Build on EC2 Instance
+      run: |
+          # SSH into the EC2 instance and run the build script
+          ssh -o StrictHostKeyChecking=no -i /path/to/your-key.pem ubuntu@ec2-18-188-114-70.us-east-2.compute.amazonaws.com << 'EOF'
+            # Download the repository
+            git clone https://github.com/pavanbhosle/myrepo1.git
+            cd your-repo
+
+            # Install Maven
+            sudo apt-get install -y maven
+
     - name: Set up JDK 11
       uses: actions/setup-java@v3
       with:
