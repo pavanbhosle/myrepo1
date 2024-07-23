@@ -17,6 +17,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
+    - name: Cleanup Previous Key
+      run: |
+        rm -f /tmp/my-key-pair.pem
+
     - name: Save EC2 Key Pair
       run: |
         echo "${{ secrets.EC2_KEY_PAIR_PEM }}" > /tmp/my-key-pair.pem
