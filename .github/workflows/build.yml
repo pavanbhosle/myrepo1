@@ -33,24 +33,33 @@ jobs:
         aws-region: 'us-west-2'
 
     - name: Launch EC2 Instance
-      id: ec2-launch
+      id: launch_instance
       run: |
-        # Launch EC2 instance using the AMI
-         INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0cb9a84fd84e4b269 --count 1 --instance-type t2.micro --key-name MyFirstEC2-KP --region us-east-2 --query 'Instances[0].InstanceId' --output text)
-         echo "INSTANCE_ID=${INSTANCE_ID}" >> $GITHUB_ENV
-        # Tag the instance for identification
-         aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=GitHubActionsRunner
+        INSTANCE_ID=$(aws ec2 run-instances \
+          --image-id ami-0abcdef1234567890 \
+          --count 1 \
+          --instance-type t2.micro \
+          --key-name my-key-pair \
+          --region us-west-2 \
+          --query 'Instances[0].InstanceId' \
+          --output text)
+          echo "INSTANCE_ID=${INSTANCE_ID}" >> $GITHUB_ENV
+        echo "::set-output name=instance_id::${INSTANCE_ID}"
 
     - name: Wait for EC2 Instance to be Running
       run: |
-        aws ec2 wait instance-running --instance-ids ${{ env.INSTANCE_ID }}
+        aws ec2 wait instance-running --instance-ids ${{ steps.launch_instance.outputs.instance_id }} --region us-west-2
 
-    - name: Set up SSH Configuration
+    - name: Add Delay Before Tagging
+      run: sleep 30
+
+    - name: Tag EC2 Instance with Retries
       run: |
-        # Install SSH if not already available
-        sudo apt-get install -y ssh
-        # Add SSH known hosts
-        ssh-keyscan -H ec2-18-188-114-70.us-east-2.compute.amazonaws.com >> ~/.ssh/known_hosts
+        for i in {1..5}; do
+          aws ec2 create-tags --resources ${{ steps.launch_instance.outputs.instance_id }} --tags Key=Name,Value=GitHubActionsRunner --region us-west-2 && break
+          echo "Retrying in 10 seconds..."
+          sleep 10
+          done
 
     - name: Run Build on EC2 Instance
       run: |
