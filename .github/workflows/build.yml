@@ -17,11 +17,69 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Set up JDK 11
-      uses: actions/setup-java@v3
+    - name: Cleanup Previous Key
+      run: |
+        rm -f /tmp/my-key-pair.pem
+
+    - name: Save EC2 Key Pair
+      run: |
+        echo "${{ secrets.EC2_KEY_PAIR_PEM }}" > /tmp/my-key-pair.pem
+        chmod 400 /tmp/my-key-pair.pem
+
+    - name: Install up AWS CLI
+      run: |
+        sudo apt-get update
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install --update
+        aws --version
+
+    - name: Set up AWS CLI    
+      uses: aws-actions/configure-aws-credentials@v2
       with:
-        java-version: '11'
-        distribution: 'adopt'
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: 'us-east-2'
+
+    - name: Launch EC2 Instance
+      id: launch_instance
+      run: |
+        INSTANCE_ID=$(aws ec2 run-instances \
+          --image-id ami-0cb9a84fd84e4b269 \
+          --count 1 \
+          --instance-type t2.micro \
+          --key-name MyFirstEC2-KP \
+          --region us-east-2 \
+          --query 'Instances[0].InstanceId' \
+          --output text)
+          echo "INSTANCE_ID=${INSTANCE_ID}" >> $GITHUB_ENV
+        echo "::set-output name=instance_id::${INSTANCE_ID}"
+
+    - name: Wait for EC2 Instance to be Running
+      run: |
+        aws ec2 wait instance-running --instance-ids ${{ steps.launch_instance.outputs.instance_id }} --region us-east-2
+
+    - name: Add Delay Before Tagging
+      run: sleep 30
+
+    - name: Tag EC2 Instance with Retries
+      run: |
+        for i in {1..5}; do
+          aws ec2 create-tags --resources ${{ steps.launch_instance.outputs.instance_id }} --tags Key=Name,Value=GitHubActionsRunner --region us-east-2 && break
+          echo "Retrying in 10 seconds..."
+          sleep 10
+          done
+
+    - name: Run Build on EC2 Instance
+      run: |
+          # SSH into the EC2 instance and run the build script
+          ssh -o StrictHostKeyChecking=no -i /tmp/my-key-pair.pem ubuntu@ec2-18-188-114-70.us-east-2.compute.amazonaws.com << 'EOF'
+            # Download the repository
+            git clone https://github.com/pavanbhosle/myrepo1.git
+            cd your-repo
+
+            # Install Maven
+            sudo apt-get install -y maven
 
     - name: Cache Maven packages
       uses: actions/cache@v2
@@ -42,3 +100,26 @@ jobs:
       with:
         name: java-maven-project
         path: java-maven-project.zip
+
+    - name: Terminate EC2 Instance
+      if: success() || failure()
+      run: |
+        aws ec2 terminate-instances --instance-ids ${{ steps.launch_instance.outputs.instance_id }} --region us-east-2
+        aws ec2 wait instance-terminated --instance-ids ${{ steps.launch_instance.outputs.instance_id }} --region us-east-2
+
+
+    - name: Verify EC2 Termination
+      run: |
+        INSTANCE_ID=${{ steps.launch_instance.outputs.instance_id }}
+        INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text --region us-east-2)
+        echo "EC2 Instance State: $INSTANCE_STATE"
+
+    - name: Cleanup EC2 Instance
+      run: |
+        INSTANCE_ID=${{ steps.launch_instance.outputs.instance_id }}
+        aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region us-east-2 || echo "Failed to terminate instance"
+        aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region us-east-2 || echo "Instance termination did not complete"
+
+    - name: Echo Instance ID
+      run: |
+        echo "Instance ID: ${{ steps.launch_instance.outputs.instance_id }}"
