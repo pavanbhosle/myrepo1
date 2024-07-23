@@ -17,6 +17,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
+    - name: Save EC2 Key Pair
+      run: |
+        echo "${{ secrets.EC2_KEY_PAIR_PEM }}" > /tmp/my-key-pair.pem
+        chmod 400 /tmp/my-key-pair.pem
+
     - name: Install up AWS CLI
       run: |
         sudo apt-get update
@@ -64,7 +69,7 @@ jobs:
     - name: Run Build on EC2 Instance
       run: |
           # SSH into the EC2 instance and run the build script
-          ssh -o StrictHostKeyChecking=no -i /path/to/your-key.pem ubuntu@ec2-18-188-114-70.us-east-2.compute.amazonaws.com << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i /tmp/my-key-pair.pem ubuntu@ec2-18-188-114-70.us-east-2.compute.amazonaws.com << 'EOF'
             # Download the repository
             git clone https://github.com/pavanbhosle/myrepo1.git
             cd your-repo
