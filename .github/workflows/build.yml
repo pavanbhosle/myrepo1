@@ -96,3 +96,7 @@ jobs:
       with:
         name: java-maven-project
         path: java-maven-project.zip
+
+    - name: Cleanup Previous Key
+      run: |
+        rm -f /tmp/my-key-pair.pem
