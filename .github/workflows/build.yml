@@ -101,6 +101,25 @@ jobs:
         name: java-maven-project
         path: java-maven-project.zip
 
-    - name: Cleanup Previous Key
+    - name: Terminate EC2 Instance
+      if: success() || failure()
       run: |
-        rm -f /tmp/my-key-pair.pem
+        aws ec2 terminate-instances --instance-ids ${{ steps.launch_instance.outputs.instance_id }} --region us-east-2
+        aws ec2 wait instance-terminated --instance-ids ${{ steps.launch_instance.outputs.instance_id }} --region us-east-2
+
+
+    - name: Verify EC2 Termination
+      run: |
+        INSTANCE_ID=${{ steps.launch_instance.outputs.instance_id }}
+        INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text --region us-east-2)
+        echo "EC2 Instance State: $INSTANCE_STATE"
+
+    - name: Cleanup EC2 Instance
+      run: |
+        INSTANCE_ID=${{ steps.launch_instance.outputs.instance_id }}
+        aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region us-east-2 || echo "Failed to terminate instance"
+        aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region us-east-2 || echo "Instance termination did not complete"
+
+    - name: Echo Instance ID
+      run: |
+        echo "Instance ID: ${{ steps.launch_instance.outputs.instance_id }}"
