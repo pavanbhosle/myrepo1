@@ -30,7 +30,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: 'us-west-2'
+        aws-region: 'us-east-2'
 
     - name: Launch EC2 Instance
       id: launch_instance
@@ -39,8 +39,8 @@ jobs:
           --image-id ami-0cb9a84fd84e4b269 \
           --count 1 \
           --instance-type t2.micro \
-          --key-name my-key-pair \
-          --region us-west-2 \
+          --key-name MyFirstEC2-KP \
+          --region us-east-2 \
           --query 'Instances[0].InstanceId' \
           --output text)
           echo "INSTANCE_ID=${INSTANCE_ID}" >> $GITHUB_ENV
