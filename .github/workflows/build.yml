@@ -36,7 +36,7 @@ jobs:
       id: ec2-launch
       run: |
         # Launch EC2 instance using the AMI
-         INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0cb9a84fd84e4b269 --count 1 --instance-type t2.micro --key-name MyFirstEC2-KP --query 'Instances[0].InstanceId' --output text)
+         INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0cb9a84fd84e4b269 --count 1 --instance-type t2.micro --key-name MyFirstEC2-KP --region us-east-2 --query 'Instances[0].InstanceId' --output text)
          echo "INSTANCE_ID=${INSTANCE_ID}" >> $GITHUB_ENV
         # Tag the instance for identification
          aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=GitHubActionsRunner
